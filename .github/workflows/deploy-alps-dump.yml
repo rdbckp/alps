@@ -1,0 +1,61 @@
+name: Deploy ALPS Vendor Resources
+
+# Manual trigger only
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: 'Source dump repo (owner/name)'
+        required: true
+        default: 'Android-FW-Dumps/samsung_a02_dump'
+      source_branch:
+        description: 'Branch/tag of source dump'
+        required: true
+        default: 'a02xx-user-11-RP1A.200720.012-A022FXXU2BUK2-release-keys'
+      target_dir:
+        description: 'Folder in this repo to place the mirrored dump'
+        required: true
+        default: 'dump/samsung_a02'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo (rdbckp/alps)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone source dump repo
+        run: |
+          echo "Cloning ${{ github.event.inputs.source_repo }} @ ${{ github.event.inputs.source_branch }}"
+          git clone --depth 1 \
+            --branch "${{ github.event.inputs.source_branch }}" \
+            "https://github.com/${{ github.event.inputs.source_repo }}.git" \
+            /tmp/source_dump
+
+      - name: Mirror dump into target directory
+        run: |
+          mkdir -p "${{ github.event.inputs.target_dir }}"
+          rsync -a --exclude='.git' /tmp/source_dump/ "${{ github.event.inputs.target_dir }}/"
+
+      - name: Show what will be committed
+        run: |
+          cd "${{ github.event.inputs.target_dir }}"
+          echo "Top-level contents:"
+          ls -la
+          echo "Total size:"
+          du -sh .
+
+      - name: Commit and push to this repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing new to commit."
+            exit 0
+          fi
+          git commit -m "Deploy resources from ${{ github.event.inputs.source_repo }} (${{ github.event.inputs.source_branch }})"
+          git push origin HEAD:${{ github.ref_name }}
+          
