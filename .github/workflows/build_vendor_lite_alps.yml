@@ -31,7 +31,7 @@ on:
       manifest_branch:
         description: "Branch manifest LineageOS"
         required: true
-        default: "lineage-20.0"
+        default: "lineage-18.1"
       device:
         description: "Nama device (folder di device/samsung/<device>)"
         required: true
@@ -211,3 +211,4 @@ jobs:
             /home/runner/lineage20/out/target/product/${{ github.event.inputs.device }}/*.zip
           if-no-files-found: warn
           retention-days: 7
+          
