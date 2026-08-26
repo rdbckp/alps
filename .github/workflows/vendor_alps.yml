@@ -1,4 +1,4 @@
-name: Build vendor.img - LITE (ALPS tree) 1
+name: Build vendor.img - LITE (ALPS tree) 2
 
 on:
   workflow_dispatch:
@@ -118,7 +118,7 @@ jobs:
               echo "$link bukan symlink, skip"
             fi
           done
-          # Hapus sisa folder source vendor alternatif jika ada
+          # Sapu bersih folder vendor sekunder jika ada
           find . -maxdepth 2 -type d -name "*_vendor" -exec rm -rf {} + 2>/dev/null || true
 
       - name: Clone ALPS dump (sparse - vendor blobs only)
@@ -145,7 +145,7 @@ jobs:
           if [ -f "$EXTRACT_SCRIPT" ]; then
             bash "$EXTRACT_SCRIPT" ~/alps_dump/${{ github.event.inputs.alps_dump_path }}
           else
-            echo "!! Gak ada extract-files.sh di device tree — blob memakai file yang sudah ter-commit."
+            echo "!! Gak ada extract-files.sh di device tree — blob pakai yang udah ke-commit."
           fi
 
       - name: Bersihin proprietary-files.txt & regenerate Android.bp
