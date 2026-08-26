@@ -247,6 +247,15 @@ jobs:
           cp /tmp/proprietary-files.clean.txt "$PF"
           echo "== Baris sesudah bersih: $(wc -l < "$PF") =="
 
+          # setup-makefiles.sh (MY_DIR = device/samsung/<device>) manggil
+          # write_makefiles "$MY_DIR"/proprietary-files.txt — artinya dia nyari file
+          # itu di folder DEVICE tree, padahal file aslinya ada di folder VENDOR tree
+          # (vendor/samsung/<device>/proprietary-files.txt). Taruh salinan yang udah
+          # bersih ke lokasi yang di-expect script itu juga (ephemeral doang).
+          DEVICE_PF="device/samsung/${{ github.event.inputs.device }}/proprietary-files.txt"
+          cp "$PF" "$DEVICE_PF"
+          echo "Copy proprietary-files.txt bersih ke $DEVICE_PF juga"
+
           # setup-makefiles.sh ini ditulis buat struktur LineageOS 19/20, dia nyari
           # helper di vendor/lineage/build/tools/extract_utils.sh. Tapi manifest yang
           # kita pakai sekarang lineage-18.1, di situ helper-nya ada di project
