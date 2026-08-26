@@ -309,4 +309,3 @@ jobs:
             /home/runner/lineage20/out/target/product/${{ github.event.inputs.device }}/*.zip
           if-no-files-found: warn
           retention-days: 7
-          
