@@ -138,16 +138,27 @@ jobs:
           # symlink, tapi `find` yang dipakai build system buat nyari AndroidProducts.mk
           # TIDAK nembus symlink secara default -> product config gagal ketemu.
           # Fix: ganti symlink jadi copy folder asli.
+          # PENTING: pakai `mv`, bukan `cp`. Local manifest checkout project "vendor"
+          # ke path terpisah (mis. _rdbckp_vendor) lalu bikin symlink ke situ. Kalau
+          # kita cuma `cp` isinya, folder asal (_rdbckp_vendor/...) tetep ada sebagai
+          # direktori nyata juga -> Soong nemu 2 Android.bp identik (di lokasi symlink
+          # yg udah jadi copy, DAN di folder asal project) -> "module X already defined".
+          # `mv` mindahin fisik filenya jadi cuma ada 1 salinan.
           for link in device/samsung/${{ github.event.inputs.device }} vendor/samsung/${{ github.event.inputs.device }}; do
             if [ -L "$link" ]; then
               target=$(readlink -f "$link")
               echo "Convert symlink: $link -> $target"
               rm "$link"
-              cp -a "$target" "$link"
+              mv "$target" "$link"
             else
               echo "$link bukan symlink, skip"
             fi
           done
+
+          # Folder asal project (mis. _rdbckp_vendor) sekarang cuma sisa direktori
+          # kosong/metadata setelah isinya di-mv. Hapus biar bener2 gak ada jejak
+          # duplikat yang bisa ke-scan Soong.
+          find . -maxdepth 1 -type d -name "_*_vendor" -exec rm -rf {} + 2>/dev/null || true
 
       - name: Clone ALPS dump (sparse - vendor blobs only)
         run: |
@@ -211,4 +222,3 @@ jobs:
             /home/runner/lineage20/out/target/product/${{ github.event.inputs.device }}/*.zip
           if-no-files-found: warn
           retention-days: 7
-          
