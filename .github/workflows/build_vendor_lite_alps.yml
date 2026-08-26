@@ -180,15 +180,79 @@ jobs:
       - name: Extract vendor blobs dari ALPS dump
         run: |
           cd ~/lineage20
-          EXTRACT_SCRIPT="device/samsung/${{ github.event.inputs.device }}/extract-files.py"
+          # Device tree ini gak punya extract-files.py/.sh — blob proprietary udah
+          # ke-commit langsung di vendor/samsung/<device>/proprietary/. Yang ada
+          # cuma setup-makefiles.sh (regenerate Android.bp dari proprietary-files.txt,
+          # BUKAN nyalin blob baru). Step ini dibiarkan sebagai placeholder kalau
+          # nanti device tree kamu ditambahin extract script beneran.
+          EXTRACT_SCRIPT="device/samsung/${{ github.event.inputs.device }}/extract-files.sh"
           if [ -f "$EXTRACT_SCRIPT" ]; then
-            python3 "$EXTRACT_SCRIPT" ~/alps_dump/${{ github.event.inputs.alps_dump_path }}
+            bash "$EXTRACT_SCRIPT" ~/alps_dump/${{ github.event.inputs.alps_dump_path }}
           else
-            echo "!! extract-files.py gak ketemu di $EXTRACT_SCRIPT — cek path device tree kamu."
-            echo "!! Skip extract, build kemungkinan pakai blob lama yang udah ke-commit di vendor tree."
+            echo "!! Gak ada extract-files.sh di device tree — blob pakai yang udah ke-commit."
           fi
           echo "== Isi vendor/samsung/${{ github.event.inputs.device }}/proprietary setelah extract =="
           find vendor/samsung/${{ github.event.inputs.device }}/proprietary -maxdepth 1 2>/dev/null | head -30 || true
+
+      - name: Bersihin proprietary-files.txt & regenerate Android.bp (EPHEMERAL, gak di-push ke rdbckp/vendor)
+        run: |
+          cd ~/lineage20
+          PF="vendor/samsung/${{ github.event.inputs.device }}/proprietary-files.txt"
+          SETUP="device/samsung/${{ github.event.inputs.device }}/setup-makefiles.sh"
+
+          # 30 baris ini adalah file generic yang udah disediain AOSP source sendiri
+          # (default HAL service impl, boringssl, mkshrc, selinux context auto-generate,
+          # vintf compatibility matrix, dst) tapi ke-declare ulang jadi prebuilt module
+          # di proprietary-files.txt hasil auto-generate dari vendor.tar.gz -> bikin
+          # Soong "module X already defined" pas nabrak module yg sama dari source AOSP.
+          # Perubahan ini CUMA di checkout runner (ephemeral) - proprietary-files.txt
+          # asli di rdbckp/vendor TIDAK ikut berubah/ke-push.
+          CONFLICT_LINES=(
+            "vendor/bin/hw/android.hardware.audio.service"
+            "vendor/bin/hw/android.hardware.cas@1.2-service"
+            "vendor/bin/hw/android.hardware.drm@1.3-service.clearkey"
+            "vendor/bin/hw/android.hardware.gatekeeper@1.0-service"
+            "vendor/bin/hw/android.hardware.graphics.composer@2.1-service"
+            "vendor/bin/hw/android.hardware.keymaster@4.0-service"
+            "vendor/bin/hw/android.hardware.media.omx@1.0-service"
+            "vendor/bin/hw/android.hardware.memtrack@1.0-service"
+            "vendor/bin/hw/android.hardware.sensors@1.0-service"
+            "vendor/bin/boringssl_self_test32"
+            "vendor/etc/init/android.hardware.audio.service.rc"
+            "vendor/etc/init/android.hardware.cas@1.2-service.rc"
+            "vendor/etc/init/android.hardware.drm@1.3-service.clearkey.rc"
+            "vendor/etc/init/android.hardware.gatekeeper@1.0-service.rc"
+            "vendor/etc/init/android.hardware.graphics.composer@2.1-service.rc"
+            "vendor/etc/init/android.hardware.keymaster@4.0-service.rc"
+            "vendor/etc/init/android.hardware.media.omx@1.0-service.rc"
+            "vendor/etc/init/android.hardware.memtrack@1.0-service.rc"
+            "vendor/etc/init/android.hardware.sensors@1.0-service.rc"
+            "vendor/etc/init/boringssl_self_test.rc"
+            "vendor/etc/media_codecs.xml"
+            "vendor/etc/mkshrc"
+            "vendor/etc/seccomp_policy/mediaextractor.policy"
+            "vendor/etc/seccomp_policy/mediaswcodec.policy"
+            "vendor/etc/selinux/vendor_file_contexts"
+            "vendor/etc/selinux/vendor_hwservice_contexts"
+            "vendor/etc/selinux/vendor_property_contexts"
+            "vendor/etc/selinux/vendor_service_contexts"
+            "vendor/etc/vintf/compatibility_matrix.xml"
+            "vendor/etc/vintf/manifest/android.hardware.cas@1.2-service.xml"
+            "vendor/etc/vintf/manifest/manifest_android.hardware.drm@1.3-service.clearkey.xml"
+          )
+          printf '%s\n' "${CONFLICT_LINES[@]}" > /tmp/conflict-lines.txt
+
+          echo "== Baris sebelum bersih: $(wc -l < "$PF") =="
+          grep -vFf /tmp/conflict-lines.txt "$PF" > /tmp/proprietary-files.clean.txt
+          cp /tmp/proprietary-files.clean.txt "$PF"
+          echo "== Baris sesudah bersih: $(wc -l < "$PF") =="
+
+          if [ -f "$SETUP" ]; then
+            bash "$SETUP"
+            echo "== Android.bp berhasil di-regenerate (ephemeral) =="
+          else
+            echo "!! setup-makefiles.sh gak ketemu di $SETUP — Android.bp lama tetep dipakai, build kemungkinan masih gagal."
+          fi
 
       - name: Build vendor image (mode lite)
         env:
@@ -222,3 +286,4 @@ jobs:
             /home/runner/lineage20/out/target/product/${{ github.event.inputs.device }}/*.zip
           if-no-files-found: warn
           retention-days: 7
+          
